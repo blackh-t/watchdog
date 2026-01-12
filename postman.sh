@@ -5,7 +5,6 @@ set -e # Stop on error flag.
 #######################################
 IP="127.0.0.1"
 WS_PORT=7777   # WebServer PORT.
-BTOP_PORT=7778 # BTOP TTYD PORT.
 SERVER_ENDPOINT=""
 SECRET_TOKEN=""
 SERVICE_NAME="pi5_dash"
@@ -78,7 +77,7 @@ Wants=network-online.target tailscaled.service
 [Service]
 Type=simple
 User=root
-# If it fails at boot (NoState), the Restart timer will retry it until it works.
+ExecStartPre=-/usr/bin/tailscale funnel reset
 ExecStart=/usr/bin/tailscale funnel --set-path / http://127.0.0.1:$WS_PORT
 ExecStop=/usr/bin/tailscale funnel reset
 
@@ -118,39 +117,51 @@ Environment="WORK_DIR=$WORK_DIR"
 WantedBy=multi-user.target
 EOF
 
-#######################################
+# ==========================================
 # WATCHDOG: NUCLEAR REBOOT EDITION
-#######################################
+# ==========================================
 echo "☢️  Installing Nuclear Watchdog..."
 
-# 1. Create the Check Script
 sudo tee /usr/local/bin/check_ping.sh >/dev/null <<EOF
 #!/bin/bash
 
-# Target to check (Auto-injected)
-TARGET="$SERVER_ENDPOINT"
+# --- CONFIGURATION ---
+INTERNET_TARGET="8.8.8.8"
+FUNNEL_TARGET="$SERVER_ENDPOINT"  # <-- Auto-filled by installer
+# ---------------------
 
-# Check the Funnel
-# -s: Silent, --head: Headers only, --fail: Fail on error, --max-time 10: 10s timeout
-if curl -s --head --fail --max-time 10 "\$TARGET" > /dev/null; then
-    echo "Funnel is UP."
+echo "--- Starting Connectivity Check ---"
+
+# 1. CHECK INTERNET (Basic Connectivity)
+# We ping Google to see if the Pi has ANY internet connection.
+if ping -c 1 -W 5 "\$INTERNET_TARGET" > /dev/null 2>&1; then
+    echo "✅ Internet Connection: OK (\$INTERNET_TARGET)"
+else
+    echo "❌ Internet Connection: DOWN"
+    echo "   -> Reason: Cannot reach Google."
+    echo "   -> Action: REBOOTING SYSTEM."
+
+    /sbin/reboot -f
+    exit 1
+fi
+
+# 2. CHECK FUNNEL (The real test)
+# If internet is fine, we specifically check if the Funnel is accessible from the outside.
+# -s: Silent, --head: Headers only, --fail: Fail on error code, --max-time 10: Timeout
+if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
+    echo "✅ Tailscale Funnel: UP (\$FUNNEL_TARGET)"
     exit 0
 else
-    echo "!!! FUNNEL DOWN. INITIATING FORCED REBOOT !!!"
+    echo "❌ Tailscale Funnel: DOWN"
+    echo "   -> Reason: Internet is up, but Funnel URL is unreachable."
+    echo "   -> Action: NUCLEAR REBOOT INITIATED."
 
-    # --- METHOD 1: Systemctl Force ---
-    # Try the modern systemd force reboot
+    # --- NUCLEAR REBOOT SEQUENCE ---
     systemctl --force --force reboot &
-
-    # --- METHOD 2: Old School Double Force ---
-    # If systemd is frozen, use direct binary.
     sleep 2
     /usr/sbin/reboot -f -f
     /sbin/reboot -f -f
-
-    # --- METHOD 3: The Magic SysRq (Hardware Trigger) ---
-    # This is equivalent to pulling the power plug.
-    sleep 2
+    # Kernel Panic Trigger
     echo 1 > /proc/sys/kernel/sysrq
     echo b > /proc/sysrq-trigger
 
@@ -160,8 +171,9 @@ EOF
 
 sudo chmod +x /usr/local/bin/check_ping.sh
 
-# 2. Create the Watchdog Service
-echo "$SERVICE_NAME-watchdog.service" >>"$SYSTEMD_LIST"
+# ------------------------------------------
+# Create the Watchdog Service
+# ------------------------------------------
 sudo tee /etc/systemd/system/$SERVICE_NAME-watchdog.service >/dev/null <<EOF
 [Unit]
 Description=$SERVICE_NAME Nuclear Watchdog
@@ -171,7 +183,9 @@ Type=oneshot
 ExecStart=/usr/local/bin/check_ping.sh
 EOF
 
-# 3. Create the Watchdog Timer
+# ------------------------------------------
+# Create the Watchdog Timer
+# ------------------------------------------
 echo "$SERVICE_NAME-watchdog.timer" >>"$SYSTEMD_LIST"
 sudo tee /etc/systemd/system/$SERVICE_NAME-watchdog.timer >/dev/null <<EOF
 [Unit]
