@@ -179,6 +179,7 @@ sudo tee /etc/systemd/system/$SERVICE_NAME-watchdog.service >/dev/null <<EOF
 Description=$SERVICE_NAME Nuclear Watchdog
 
 [Service]
+User=root
 Type=oneshot
 ExecStart=/usr/local/bin/check_ping.sh
 EOF
