@@ -7,7 +7,7 @@ IP="127.0.0.1"
 WS_PORT=7777   # WebServer PORT.
 SERVER_ENDPOINT=""
 SECRET_TOKEN=""
-SERVICE_NAME="pi5_dash"
+SERVICE_NAME="pi5_dash" # Project name
 BIN_DIR="/opt/$SERVICE_NAME"
 WORK_DIR=$(pwd)
 SYSTEMD_LIST=$WORK_DIR"/systemd.txt"
@@ -18,7 +18,6 @@ if [ "$EUID" -ne 0 ]; then
     echo "Please run as root (use sudo)"
     exit 1
 fi
-
 
 
 #######################################
@@ -45,11 +44,10 @@ if ! tailscale status >/dev/null 2>&1; then
 fi
 
 #######################################
-# TAILSCALE FUNNEL
+# TAILSCALE 
 #######################################
 sudo tailscale funnel -bg --set-path / http://127.0.0.1:$WS_PORT
 
-# --- AUTO-DETECT ENDPOINT FOR WATCHDOG ---
 echo "🔍 Detecting Tailscale URL..."
 TS_DOMAIN=$(tailscale status --json | grep -oP '"DNSName": "\K[^"]+' | head -1 | sed 's/\.$//')
 if [ -z "$TS_DOMAIN" ]; then
@@ -161,12 +159,23 @@ if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
 else
     echo "❌ Tailscale Funnel: DOWN"
     echo "   -> Reason: Internet is up, but Funnel URL is unreachable."
-    trigger_nuclear_reboot
+    systemctl restart tailscale
 fi
+
+# RECHECK FUNNEL 
+if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
+    echo "✅ Tailscale Funnel: UP (\$FUNNEL_TARGET)"
+    exit 0
+else
+    echo "❌ Tailscale Funnel: DOWN"
+    echo "   -> Reason: service restart did not help, read system log for more information."
+    systemctl restart tailscale
+fi
+
 EOF
 
-# Make it executable
-sudo chmod +x /usr/local/bin/check_ping.sh
+
+sudo chmod +x /usr/local/bin/check_ping.shz # Make it executable 
 echo "✅ Watchdog script installed to /usr/local/bin/check_ping.sh"
 
 # ------------------------------------------
