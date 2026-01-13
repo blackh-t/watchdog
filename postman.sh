@@ -19,6 +19,8 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+
+
 #######################################
 # INSTALL TAILSCALE (if missing)
 #######################################
@@ -42,8 +44,12 @@ if ! tailscale status >/dev/null 2>&1; then
     sudo tailscale up
 fi
 
+#######################################
+# TAILSCALE FUNNEL
+#######################################
+sudo tailscale funnel -bg --set-path / http://127.0.0.1:$WS_PORT
+
 # --- AUTO-DETECT ENDPOINT FOR WATCHDOG ---
-# We need this now so we can write it into the watchdog script
 echo "🔍 Detecting Tailscale URL..."
 TS_DOMAIN=$(tailscale status --json | grep -oP '"DNSName": "\K[^"]+' | head -1 | sed 's/\.$//')
 if [ -z "$TS_DOMAIN" ]; then
@@ -63,31 +69,6 @@ if [ -z "$SECRET_TOKEN" ]; then
     export SECRET_TOKEN
 fi
 
-#######################################
-# funnel_webserver.service
-#######################################
-echo "$SERVICE_NAME-funnel_webserver.service" >>"$SYSTEMD_LIST"
-sudo tee /etc/systemd/system/$SERVICE_NAME-funnel_webserver.service >/dev/null <<EOF
-[Unit]
-Description=$SERVICE_NAME Funnel WebServer
-After=network-online.target tailscaled.service
-Requires=tailscaled.service
-Wants=network-online.target tailscaled.service
-
-[Service]
-Type=simple
-User=root
-ExecStartPre=-/usr/bin/tailscale funnel reset
-ExecStart=/usr/bin/tailscale funnel --set-path / http://127.0.0.1:$WS_PORT
-ExecStop=/usr/bin/tailscale funnel reset
-
-# Retry every 5 seconds if it fails (e.g. waiting for Tailscale to wake up)
-Restart=always
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-EOF
 
 #######################################
 # webserver.service
@@ -118,58 +99,75 @@ WantedBy=multi-user.target
 EOF
 
 # ==========================================
-# WATCHDOG: NUCLEAR REBOOT EDITION
+# WATCHDOG: NUCLEAR REBOOT EDITION (Safe & Logged)
 # ==========================================
 echo "☢️  Installing Nuclear Watchdog..."
 
 sudo tee /usr/local/bin/check_ping.sh >/dev/null <<EOF
 #!/bin/bash
 
+# --- LOGGING CONFIGURATION ---
+# Log to disk AND screen.
+LOG_FILE="/var/log/check_ping.log"
+exec > >(tee -a "\$LOG_FILE") 2>&1
+
+echo "------------------------------------------------"
+echo "Run Date: \$(date)"
+
 # --- CONFIGURATION ---
 INTERNET_TARGET="8.8.8.8"
-FUNNEL_TARGET="$SERVER_ENDPOINT"  # <-- Auto-filled by installer
+FUNNEL_TARGET="$SERVER_ENDPOINT"
 # ---------------------
+
+# --- HELPER FUNCTION: SAFE NUCLEAR REBOOT ---
+function trigger_nuclear_reboot() {
+    # DIRECT WRITE: Bypass standard output buffering to ensure these land on disk
+    echo "   -> Action: INITIATING HARDWARE RESET." >> "\$LOG_FILE"
+    echo "   -> Syncing filesystems..." >> "\$LOG_FILE"
+    
+    # DISK WRITE
+    sync
+    
+    # SYS-RQ HARDWARE RESET SEQUENCE
+    # 1. Enable SysRq
+    echo 1 > /proc/sys/kernel/sysrq
+    
+    # 2. Sync again at hardware level (Safety)
+    echo s > /proc/sysrq-trigger
+    sleep 2
+    
+    # 3. Hard Reset (Immediate CPU Restart)
+    echo b > /proc/sysrq-trigger
+    
+    # Script dies here
+    exit 1
+}
 
 echo "--- Starting Connectivity Check ---"
 
-# 1. CHECK INTERNET (Basic Connectivity)
-# We ping Google to see if the Pi has ANY internet connection.
+# CHECK INTERNET (Basic Connectivity)
 if ping -c 1 -W 5 "\$INTERNET_TARGET" > /dev/null 2>&1; then
     echo "✅ Internet Connection: OK (\$INTERNET_TARGET)"
 else
     echo "❌ Internet Connection: DOWN"
     echo "   -> Reason: Cannot reach Google."
-    echo "   -> Action: REBOOTING SYSTEM."
-
-    /sbin/reboot -f
-    exit 1
+    trigger_nuclear_reboot
 fi
 
-# 2. CHECK FUNNEL (The real test)
-# If internet is fine, we specifically check if the Funnel is accessible from the outside.
-# -s: Silent, --head: Headers only, --fail: Fail on error code, --max-time 10: Timeout
+# CHECK FUNNEL (The real test)
 if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
     echo "✅ Tailscale Funnel: UP (\$FUNNEL_TARGET)"
     exit 0
 else
     echo "❌ Tailscale Funnel: DOWN"
     echo "   -> Reason: Internet is up, but Funnel URL is unreachable."
-    echo "   -> Action: NUCLEAR REBOOT INITIATED."
-
-    # --- NUCLEAR REBOOT SEQUENCE ---
-    systemctl --force --force reboot &
-    sleep 2
-    /usr/sbin/reboot -f -f
-    /sbin/reboot -f -f
-    # Kernel Panic Trigger
-    echo 1 > /proc/sys/kernel/sysrq
-    echo b > /proc/sysrq-trigger
-
-    exit 1
+    trigger_nuclear_reboot
 fi
 EOF
 
+# Make it executable
 sudo chmod +x /usr/local/bin/check_ping.sh
+echo "✅ Watchdog script installed to /usr/local/bin/check_ping.sh"
 
 # ------------------------------------------
 # Create the Watchdog Service
@@ -272,6 +270,9 @@ done <"$SYSTEMD_LIST"
 sudo install -m 755 "$BIN_LOCAL/git_pull.sh" /usr/local/bin/git_pull.sh
 [[ -f "$BIN_LOCAL/run_on_pull.sh" ]] && sudo install -m 755 "$BIN_LOCAL/run_on_pull.sh" /usr/local/bin/run_on_pull.sh
 
+echo "------------------------------------------------"
+echo "$TS_STATS"
+echo "------------------------------------------------"
 echo "✅ $SERVICE_NAME installation complete"
 echo "☢️  Watchdog is ACTIVE on target: $SERVER_ENDPOINT"
 echo "Your Webhook endpoint: $SERVER_ENDPOINT/webhook"
