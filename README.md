@@ -72,3 +72,7 @@ sudo ./postman.sh
 >2. GitHub sends a webhook to your device via the secure Tailscale Funnel.
 >3. **Watchdog** verifies the secret, pulls the latest code, recompiles the project, and restarts the service.
 >4. If the connection fails at any point, the **Watchdog** reboots the system to ensure it comes back online.
+
+
+### Why it's cool
+It handles everything: installing Tailscale, setting up systemd units (service and timers), installing Rust, and configuring the environment variables. It makes a complex setup feel plug-and-play.
