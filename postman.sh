@@ -118,7 +118,7 @@ FUNNEL_TARGET="$SERVER_ENDPOINT"
 # ---------------------
 
 # --- HELPER FUNCTION: SAFE NUCLEAR REBOOT ---
-function trigger_nuclear_reboot() {
+function trigger_safe_reboot() {
     # DIRECT WRITE: Bypass standard output buffering to ensure these land on disk
     echo "   -> Action: INITIATING HARDWARE RESET." >> "\$LOG_FILE"
     echo "   -> Syncing filesystems..." >> "\$LOG_FILE"
@@ -127,13 +127,9 @@ function trigger_nuclear_reboot() {
     sync
     sleep 5
     
-    # SYS-RQ HARDWARE RESET SEQUENCE
-    echo 1 > /proc/sys/kernel/sysrq
-    echo s > /proc/sysrq-trigger
-    sleep 5
-    echo b > /proc/sysrq-trigger
-    
-    exit 1
+    /usr/bin/systemctl reboot
+    sleep 60
+    exit 0
 }
 
 echo "--- Starting Connectivity Check ---"
@@ -144,7 +140,7 @@ if ping -c 1 -W 5 "\$INTERNET_TARGET" > /dev/null 2>&1; then
 else
     echo "❌ Internet Connection: DOWN"
     echo "   -> Reason: Cannot reach Google."
-    trigger_nuclear_reboot
+    trigger_safe_reboot
 fi
 
 # CHECK FUNNEL
@@ -165,7 +161,7 @@ if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
 else
     echo "❌ Tailscale Funnel: DOWN"
     echo "   -> Reason: service restart failed, read system log for more information."
-    trigger_nuclear_reboot
+    trigger_safe_reboot
 fi
 EOF
 
