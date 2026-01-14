@@ -125,19 +125,14 @@ function trigger_nuclear_reboot() {
     
     # DISK WRITE
     sync
+    sleep 5
     
     # SYS-RQ HARDWARE RESET SEQUENCE
-    # 1. Enable SysRq
     echo 1 > /proc/sys/kernel/sysrq
-    
-    # 2. Sync again at hardware level (Safety)
     echo s > /proc/sysrq-trigger
-    sleep 2
-    
-    # 3. Hard Reset (Immediate CPU Restart)
+    sleep 5
     echo b > /proc/sysrq-trigger
     
-    # Script dies here
     exit 1
 }
 
@@ -152,7 +147,7 @@ else
     trigger_nuclear_reboot
 fi
 
-# CHECK FUNNEL (The real test)
+# CHECK FUNNEL
 if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
     echo "✅ Tailscale Funnel: UP (\$FUNNEL_TARGET)"
     exit 0
@@ -160,20 +155,19 @@ else
     echo "❌ Tailscale Funnel: DOWN"
     echo "   -> Reason: Internet is up, but Funnel URL is unreachable."
     systemctl restart tailscale
+    sleep 5
 fi
 
-# RECHECK FUNNEL 
+# RE-CHECK FUNNEL 
 if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
     echo "✅ Tailscale Funnel: UP (\$FUNNEL_TARGET)"
     exit 0
 else
     echo "❌ Tailscale Funnel: DOWN"
-    echo "   -> Reason: service restart did not help, read system log for more information."
-    systemctl restart tailscale
+    echo "   -> Reason: service restart failed, read system log for more information."
+    trigger_nuclear_reboot
 fi
-
 EOF
-
 
 sudo chmod +x /usr/local/bin/check_ping.shz # Make it executable 
 echo "✅ Watchdog script installed to /usr/local/bin/check_ping.sh"
