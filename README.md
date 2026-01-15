@@ -2,16 +2,12 @@
   
 # 🐕 Watchdog
 
-**A resilient, self-healing auto-deployment agent for edge devices.**
+**A resilient, auto-deployment agent for edge devices.**
 
 ![Rust](https://img.shields.io/badge/Built_with-Rust-orange?style=flat-square)
-![Systemd](https://img.shields.io/badge/Service-Systemd-green?style=flat-square)
 ![Tailscale](https://img.shields.io/badge/Network-Tailscale-blue?style=flat-square)
 </div>
 
-> [!WARNING]
-> **This project includes a Hard Reboot mechanism.**
-> If the connection check fails, the device **WILL** reboot immediately. Do not run this on critical systems.
 
 >Watchdog allows you to automatically build and deploy Rust Webapp on your device (like a Raspberry Pi) simply by pushing to GitHub. It uses **Tailscale Funnel** to securely expose your local webhook to the network and features a **nuclear boot** that forces a hardware reset if the connection ever drops.
 
@@ -19,7 +15,6 @@
 
 >- **Auto-Deploy:** Automatically pulls code, compiles, and restarts services via GitHub Webhooks.
 >- **Tailscale Funnel:** Exposes your local server to the public internet securely (no router port forwarding needed).
->- **Nuclear Watchdog:** Monitors the public endpoint 24/7. If the site is unreachable, it forces a kernel-level reboot to restore connectivity.
 >- **Rust Integrated:** Handles `cargo build --release` by making changes to ` /bin/run_on_pull.sh`, which is detected and executed by a systemd unit.
 
 ## Prerequisites
@@ -71,7 +66,6 @@ sudo ./postman.sh
 >1. You push code to GitHub.
 >2. GitHub sends a webhook to your device via the secure Tailscale Funnel.
 >3. **Watchdog** verifies the secret, pulls the latest code, recompiles the project, and restarts the service.
->4. If the connection fails at any point, the **Watchdog** reboots the system to ensure it comes back online.
 
 
 ### Why it's cool
