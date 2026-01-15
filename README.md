@@ -9,7 +9,7 @@
 </div>
 
 
->Watchdog allows you to automatically build and deploy Rust Webapp on your device (like a Raspberry Pi) simply by pushing to GitHub. It uses **Tailscale Funnel** to securely expose your local webhook to the network and features a **nuclear boot** that forces a hardware reset if the connection ever drops.
+>Watchdog allows you to automatically build and deploy Rust Webapp on your device (like a Raspberry Pi) simply by pushing to GitHub. It uses **Tailscale Funnel** to securely expose your local webhook to the network.
 
 ## Features
 
