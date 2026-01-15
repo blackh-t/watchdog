@@ -43,9 +43,6 @@ if ! tailscale status >/dev/null 2>&1; then
     sudo tailscale up
 fi
 
-#######################################
-# TAILSCALE 
-#######################################
 sudo tailscale funnel -bg --set-path / http://127.0.0.1:$WS_PORT
 
 echo "🔍 Detecting Tailscale URL..."
@@ -94,110 +91,6 @@ Environment="WORK_DIR=$WORK_DIR"
 
 [Install]
 WantedBy=multi-user.target
-EOF
-
-# ==========================================
-# WATCHDOG: NUCLEAR REBOOT EDITION (Safe & Logged)
-# ==========================================
-echo "☢️  Installing Nuclear Watchdog..."
-
-sudo tee /usr/local/bin/check_ping.sh >/dev/null <<EOF
-#!/bin/bash
-
-# --- LOGGING CONFIGURATION ---
-# Log to disk AND screen.
-LOG_FILE="/var/log/check_ping.log"
-exec > >(tee -a "\$LOG_FILE") 2>&1
-
-echo "------------------------------------------------"
-echo "Run Date: \$(date)"
-
-# --- CONFIGURATION ---
-INTERNET_TARGET="8.8.8.8"
-FUNNEL_TARGET="$SERVER_ENDPOINT"
-# ---------------------
-
-# --- HELPER FUNCTION: SAFE NUCLEAR REBOOT ---
-function trigger_safe_reboot() {
-    # DIRECT WRITE: Bypass standard output buffering to ensure these land on disk
-    echo "   -> Action: INITIATING HARDWARE RESET." >> "\$LOG_FILE"
-    echo "   -> Syncing filesystems..." >> "\$LOG_FILE"
-    
-    # DISK WRITE
-    sync
-    sleep 5
-    
-    /usr/bin/systemctl reboot
-    sleep 60
-    exit 0
-}
-
-echo "--- Starting Connectivity Check ---"
-
-# CHECK INTERNET (Basic Connectivity)
-if ping -c 1 -W 5 "\$INTERNET_TARGET" > /dev/null 2>&1; then
-    echo "✅ Internet Connection: OK (\$INTERNET_TARGET)"
-else
-    echo "❌ Internet Connection: DOWN"
-    echo "   -> Reason: Cannot reach Google."
-    trigger_safe_reboot
-fi
-
-# CHECK FUNNEL
-if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
-    echo "✅ Tailscale Funnel: UP (\$FUNNEL_TARGET)"
-    exit 0
-else
-    echo "❌ Tailscale Funnel: DOWN"
-    echo "   -> Reason: Internet is up, but Funnel URL is unreachable."
-    systemctl restart tailscale
-    sleep 5
-fi
-
-# RE-CHECK FUNNEL 
-if curl -s --head --fail --max-time 10 "\$FUNNEL_TARGET" > /dev/null; then
-    echo "✅ Tailscale Funnel: UP (\$FUNNEL_TARGET)"
-    exit 0
-else
-    echo "❌ Tailscale Funnel: DOWN"
-    echo "   -> Reason: service restart failed, read system log for more information."
-    trigger_safe_reboot
-fi
-EOF
-
-sudo chmod +x /usr/local/bin/check_ping.shz # Make it executable 
-echo "✅ Watchdog script installed to /usr/local/bin/check_ping.sh"
-
-# ------------------------------------------
-# Create the Watchdog Service
-# ------------------------------------------
-sudo tee /etc/systemd/system/$SERVICE_NAME-watchdog.service >/dev/null <<EOF
-[Unit]
-Description=$SERVICE_NAME Nuclear Watchdog
-
-[Service]
-User=root
-Type=oneshot
-ExecStart=/usr/local/bin/check_ping.sh
-EOF
-
-# ------------------------------------------
-# Create the Watchdog Timer
-# ------------------------------------------
-echo "$SERVICE_NAME-watchdog.timer" >>"$SYSTEMD_LIST"
-sudo tee /etc/systemd/system/$SERVICE_NAME-watchdog.timer >/dev/null <<EOF
-[Unit]
-Description=Run Tailscale Watchdog every 10 minutes
-
-[Timer]
-# Wait 5 minutes after boot before first check
-OnBootSec=5min
-# Then check every 10 minutes
-OnUnitActiveSec=10min
-Unit=$SERVICE_NAME-watchdog.service
-
-[Install]
-WantedBy=timers.target
 EOF
 
 #######################################
@@ -273,5 +166,4 @@ echo "------------------------------------------------"
 echo "$TS_STATS"
 echo "------------------------------------------------"
 echo "✅ $SERVICE_NAME installation complete"
-echo "☢️  Watchdog is ACTIVE on target: $SERVER_ENDPOINT"
 echo "Your Webhook endpoint: $SERVER_ENDPOINT/webhook"
