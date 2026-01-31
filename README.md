@@ -1,72 +1,60 @@
 <div align="center">
   
-# 🐕 Watchdog
-
-**A resilient, auto-deployment agent for edge devices.**
+# ✉️ Postman
+**Postman** automates deployment for your repository, with Github Webhook.
 
 ![Rust](https://img.shields.io/badge/Built_with-Rust-orange?style=flat-square)
 ![Tailscale](https://img.shields.io/badge/Network-Tailscale-blue?style=flat-square)
+
 </div>
 
+### Key Features
 
->Watchdog allows you to automatically build and deploy Rust Webapp on your device (like a Raspberry Pi) simply by pushing to GitHub. It uses **Tailscale Funnel** to securely expose your local webhook to the network.
+- **Secure Access:** Uses Tailscale Funnel to expose your local server securely (no port forwarding required).
+- **Auto-Deploy:** Automatically pulls updates via GitHub Webhooks.
+- **Custom Scripting:** Executes `run_on_pull.sh` on every update to handle builds or restarts.
 
-## Features
+---
 
->- **Auto-Deploy:** Automatically pulls code, compiles, and restarts services via GitHub Webhooks.
->- **Tailscale Funnel:** Exposes your local server to the public internet securely (no router port forwarding needed).
->- **Rust Integrated:** Handles `cargo build --release` by making changes to ` /bin/run_on_pull.sh`, which is detected and executed by a systemd unit.
+### Prerequisites
 
-## Prerequisites
+- Linux OS with Root privileges.
+- A [Tailscale](https://tailscale.com) account.
 
->- A Linux device
->- Root privileges (sudo).
->- A [Tailscale](https://tailscale.com) account.
+---
 
-## Installation
+### Setup Guide
 
-### 1. Fork the Repository
-> Click the **Fork** button at the top right of this page to create your own copy of the repository.
-
-### 2. Clone to your Device
-> SSH into your device and clone your forked repository:
+**1. Clone & Install**
+Clone the repository to your device and run the installer as root:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/watchdog.git
-cd watchdog
-
-```
-
-### 3. Run the Installer
-
->Make the script executable and run it with root privileges:
-
-```bash
+git clone https://github.com/YOUR_USERNAME/Watchdog.git
+cd Watchdog
 chmod +x postman.sh
 sudo ./postman.sh
 
 ```
 
->**During installation, you will be asked to:**
->1. **Log in to Tailscale** (if not already connected).
->2. **Enter a SECRET_TOKEN**: Choose a secure password (you will need this for GitHub).
+**2. Configure**
+Follow the on-screen prompts to:
 
-### 4. Setup GitHub Webhook
+- Log in to **Tailscale**.
+- Create a **SECRET_TOKEN** (Save this for the next step).
+- _Copy the **Webhook Endpoint URL** provided at the end of the script._
 
->Once the installation finishes, the script will output your **Webhook Endpoint** (e.g., `https://device-name.ts.net/webhook`).
+**3. Add GitHub Webhook**
+Go to your GitHub Repo **Settings** > **Webhooks** > **Add webhook**:
 
->1. Go to your GitHub Repository Settings > **Webhooks** > **Add webhook**.
->2. **Payload URL**: Paste the URL provided by the installer.
->3. **Content type**: Select `application/json`.
->4. **Secret**: Enter the `SECRET_TOKEN` you created during installation.
->5. Click **Add webhook**.
+- **Payload URL:** Paste the URL from Step 2.
+- **Content type:** `application/json`.
+- **Secret:** Enter your `SECRET_TOKEN`.
+- Click **Add webhook**.
 
-## How it Works
+---
 
->1. You push code to GitHub.
->2. GitHub sends a webhook to your device via the secure Tailscale Funnel.
->3. **Watchdog** verifies the secret, pulls the latest code, recompiles the project, and restarts the service.
+### How It Works
 
-
-### Why it's cool
-It handles everything: installing Tailscale, setting up systemd units (service and timers), installing Rust, and configuring the environment variables. It makes a complex setup feel plug-and-play.
+1. You push code to GitHub.
+2. GitHub notifies your device via the secure Tailscale link.
+3. **Postman** verifies the secret, pulls the code, and triggers `run_on_pull.sh`.

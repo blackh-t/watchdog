@@ -5,8 +5,8 @@ use log::{error, warn};
 use sha2::Sha256;
 use std::{env, process::Command};
 
-/// This function is used to run a script to pull the lastest commmit,
-/// then move and run "run_on_pull.sh".
+/// Gitpull logic
+/// verifying the signature before pull the latest commit.
 pub async fn git_pull(req: HttpRequest, body: String) -> impl Responder {
     // Get Signature.
     let sign = req
