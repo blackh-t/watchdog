@@ -25,18 +25,20 @@
 
 ### Setup Guide
 
-**1. Clone & Install**
-Clone the repository to your device and run the installer as root:
+**1. Fork & Install**
+
+Fork then clone the repository to your device and run the installer as root:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Watchdog.git
-cd Watchdog
+git clone https://github.com/YOUR_USERNAME/postman.git
+cd postman
 chmod +x postman.sh
 sudo ./postman.sh
 
 ```
 
 **2. Configure**
+
 Follow the on-screen prompts to:
 
 - Log in to **Tailscale**.
@@ -44,6 +46,7 @@ Follow the on-screen prompts to:
 - _Copy the **Webhook Endpoint URL** provided at the end of the script._
 
 **3. Add GitHub Webhook**
+
 Go to your GitHub Repo **Settings** > **Webhooks** > **Add webhook**:
 
 - **Payload URL:** Paste the URL from Step 2.
